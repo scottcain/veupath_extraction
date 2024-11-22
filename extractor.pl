@@ -2,26 +2,50 @@
 use strict;
 use warnings;
 use local::lib;
+#use Data::Dumper;
 
 use JSON;
 use Bio::GFF3::LowLevel qw / gff3_format_feature  /;
 
+my $ASSEMBLY = 'pfal3D7';
+my $OUT = $ASSEMBLY.'_gene%3Aannotation2.gff';
+open OUT, ">$OUT" or die "couldn't open $OUT for writing: $!";
 
-my $blob;
+my $contiglist_blob;
 {
     local $/ = undef;
-    my $file = "chr_1_pf_gene_annotation2.json";
+    my $file = "pf_seqlist.json";
     open FF, "<$file" or die "couldn't open $file: $!";
-    $blob = <FF>;
+    $contiglist_blob = <FF>;
     close FF;
 }
 
-my $json = JSON->new->decode($blob);
+my $contig_json = JSON->new->decode($contiglist_blob);
 
-for my $feature (@{$$json{'features'}}) {
-    &parse_line(undef, undef, $feature);
+for my $contig_info (@{$contig_json}) {
+    my $contig_name = $$contig_info{'name'};
+   
+    my $fetch_url = "https://plasmodb.org/a/service/jbrowse/features/$contig_name?feature=gene%3Aannotation2&start=0&end=2038340";
+
+    system("curl", '-o', $contig_name."_gene%3Aannotation2.json",$fetch_url);
+
+    my $blob;
+    {
+    local $/ = undef;
+    my $file = $contig_name."_gene%3Aannotation2.json";
+    open FF, "<$file" or die "couldn't open $file: $!";
+    $blob = <FF>;
+    close FF;
+    unlink $file;
+    }
+
+    my $json = JSON->new->decode($blob);
+
+    for my $feature (@{$$json{'features'}}) {
+        &parse_line(undef, undef, $feature);
+    }
 }
-
+close OUT;
 exit 0;
 
 sub parse_line {
@@ -65,7 +89,7 @@ sub parse_line {
 
     $gff3_feature{'attributes'} = \%attributes;
 
-    print gff3_format_feature(\%gff3_feature);
+    print OUT gff3_format_feature(\%gff3_feature);
 
     # print JSON->new->pretty->encode(\@{$f{'subfeatures'}});
 
