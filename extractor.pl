@@ -2,10 +2,11 @@
 use strict;
 use warnings;
 use local::lib;
-#use Data::Dumper;
+use Data::Dumper;
 
 use JSON;
 use Bio::GFF3::LowLevel qw / gff3_format_feature  /;
+use URI::Escape;
 
 my $ASSEMBLY = 'pfal3D7';
 
@@ -46,17 +47,26 @@ my $contiglist_blob;
 my $contig_json = JSON->new->decode($contiglist_blob);
 
 for my $tr_key (keys %vuepath_track_info) {
-    next if $tr_key eq 'tracks.refseq';
-    next if exists $vuepath_track_info{$tr_key}{'query.edName'};
-    next if exists $vuepath_track_info{$tr_key}{'query.edname'};
-    next if $vuepath_track_info{$tr_key}{'query.feature'} eq 'ReferenceSequence';
+    next if (defined $vuepath_track_info{$tr_key}{'query.feature'} &&
+            $vuepath_track_info{$tr_key}{'query.feature'} eq 'ReferenceSequence');
+    next unless defined $vuepath_track_info{$tr_key}{'query.edName'};
 
-    my $track_name = $vuepath_track_info{$tr_key}{'key'};
-    my $query_feature = $vuepath_track_info{$tr_key}{'query.feature'};
+    if (defined $vuepath_track_info{$tr_key}{'query.edname'}) {
+        $vuepath_track_info{$tr_key}{'query.edName'} = $vuepath_track_info{$tr_key}{'query.edname'};
+    }
+
+    my $track_name    = uri_escape($vuepath_track_info{$tr_key}{'key'});
+    my $query_feature = uri_escape($vuepath_track_info{$tr_key}{'query.feature'});
+    my $edname_str    = '';
+    if (defined $vuepath_track_info{$tr_key}{'query.edName'}) {
+        $edname_str = '&edName='.uri_escape($vuepath_track_info{$tr_key}{'query.edName'});
+    } else {
+        die Dumper(%vuepath_track_info);
+    }
     next unless $query_feature;
-    $query_feature =~ s/\./%3A/g;
+    warn $edname_str;
 
-    my $OUT = $ASSEMBLY.'_'.$track_name.'.gff';
+    my  $OUT = $ASSEMBLY.'_'.$track_name.'.gff';
     open OUT, ">$OUT" or die "couldn't open $OUT for writing: $!"; 
 
     print OUT "##gff-version 3\n";
@@ -68,16 +78,21 @@ for my $tr_key (keys %vuepath_track_info) {
     for my $contig_info (@{$contig_json}) {
         my $contig_name = $$contig_info{'name'};
 	my $contig_end  = $$contig_info{'end'};
-   
-        my $fetch_url = "https://plasmodb.org/a/service/jbrowse/features/$contig_name?feature=$query_feature&start=0&end=$contig_end";
-        warn $fetch_url;
+  
+	my $json_file = $contig_name.'_'.$query_feature;
+	$json_file    = $json_file .'_'. uri_escape($vuepath_track_info{$tr_key}{'query.edName'}) 
+	                  if defined $vuepath_track_info{$tr_key}{'query.edName'};
+	$json_file    = "$json_file.json";
+        my $fetch_url = "https://plasmodb.org/a/service/jbrowse/features/$contig_name?feature=$query_feature&start=0&end=$contig_end$edname_str";
+	my $curl = "curl -o $json_file \"$fetch_url\"";
+        warn $curl;
 
-        system("curl", '-o', $contig_name."_$query_feature",$fetch_url);
+        system( $curl ) == 0 or die $!;
 
         my $blob;
         {
         local $/ = undef;
-        my $file = $contig_name."_$query_feature";
+        my $file = $json_file;
         open FF, "<$file" or die "couldn't open $file: $!";
         $blob = <FF>;
         close FF;
