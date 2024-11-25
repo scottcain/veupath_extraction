@@ -64,9 +64,10 @@ for my $tr_key (keys %vuepath_track_info) {
         die Dumper(%vuepath_track_info);
     }
     next unless $query_feature;
-    warn $edname_str;
+    #    warn $edname_str;
 
-    my  $OUT = $ASSEMBLY.'_'.$track_name.'.gff';
+    my  $OUT = $edname_str ? $ASSEMBLY.'_'.uri_escape($vuepath_track_info{$tr_key}{'query.edName'}).'.gff' 
+                           : $ASSEMBLY.'_'.$track_name.'.gff';
     open OUT, ">$OUT" or die "couldn't open $OUT for writing: $!"; 
 
     print OUT "##gff-version 3\n";
@@ -104,9 +105,10 @@ for my $tr_key (keys %vuepath_track_info) {
         for my $feature (@{$$json{'features'}}) {
             &parse_line(undef, $contig_name, $feature);
         }
+	sleep 3; # 3 seconds between curls
     }
     close OUT;
-    sleep 10;
+    sleep 10; # 10 seconds between tracks
     die;
 }
 exit 0;
@@ -124,7 +126,7 @@ sub parse_line {
         $gff3_feature{'seq_id'} = $$f{'contig'};
     }
     $gff3_feature{'source'} = $$f{'source'};
-    $gff3_feature{'type'}   = $$f{'type'};
+    $gff3_feature{'type'}   = $$f{'type'} eq 'gff' ? defined $$f{'soterm'} ? $$f{'soterm'} : 'region' : $$f{'type'};
     $gff3_feature{'start'}  = $$f{'startm'}; # the base coord start
     $gff3_feature{'end'}    = $$f{'end'};
     $gff3_feature{'phase'}  = $$f{'phase'};
