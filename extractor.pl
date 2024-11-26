@@ -9,17 +9,25 @@ use Bio::GFF3::LowLevel qw / gff3_format_feature  /;
 use URI::Escape;
 
 my $ASSEMBLY = 'pfal3D7';
+my $SEQINFO              = "https://plasmodb.org/a/service/jbrowse/seq/$ASSEMBLY";
+my $TRACKINFO            = "https://plasmodb.org/a/jbrowse/tracks/$ASSEMBLY/tracks.conf";
+my $ASSEMBLYSPECIFICCONT = "https://plasmodb.org/a/service/jbrowse/organismSpecific/$ASSEMBLY" #json file
+my $RNASEQJUNCTIONS      = "https://plasmodb.org/a/service/jbrowse/rnaseqJunctions/$ASSEMBLY"; #json file
 
 #this is the standard tracks.conf; ignores for the moment other track configs
 #"/a/service/jbrowse/dnaseq/pfal3D7" BAMs/BWs
 #"/a/service/jbrowse/rnaseq/pfal3D7" BAMs/BWs
 #"/a/service/jbrowse/chipseq/pfal3D7" BWs
-#"/a/service/jbrowse/rnaseqJunctions/pfal3D7"
-#"/a/service/jbrowse/organismSpecific/pfal3D7"
+
+###
+#fetch tracks.conf
+###
 my $TRACK_CONF = "tracks.conf";
+system("curl -o $TRACK_CONF $TRACKINFO) == 0 or die;
 my %vuepath_track_info;
 my %lh;
 my $track_key;
+
 open TRACKCONF, "<$TRACK_CONF" or die "couldn't open $TRACK_CONF for reading: $!";
 while (<TRACKCONF>) {
     next if /^#/;
@@ -35,16 +43,30 @@ while (<TRACKCONF>) {
 }
 close TRACKCONF;
 
+###
+#fetch other json config files
+###
+
+###
+#fetch contig/refseqs file
+###
+my $ASSEMBLY_CONTIG_FILE = $ASSEMBLY."_contigs.json";
+system("curl -o $ASSEMBLY_CONTIG_FILE $SEQINFO") == 0 or die;
 
 my $contiglist_blob;
 {
     local $/ = undef;
-    my $file = "pf_seqlist.json";
+    my $file = $ASSEMBLY_CONTIG_FILE;
     open FF, "<$file" or die "couldn't open $file: $!";
     $contiglist_blob = <FF>;
     close FF;
 }
 my $contig_json = JSON->new->decode($contiglist_blob);
+
+
+###
+# loop through all of the tracks
+###
 
 for my $tr_key (keys %vuepath_track_info) {
     next if (defined $vuepath_track_info{$tr_key}{'query.feature'} &&
