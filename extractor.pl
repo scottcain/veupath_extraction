@@ -14,6 +14,15 @@ my $TRACKINFO            = "https://plasmodb.org/a/jbrowse/tracks/$ASSEMBLY/trac
 my $ASSEMBLYSPECIFICCONT = "https://plasmodb.org/a/service/jbrowse/organismSpecific/$ASSEMBLY"; #json file
 my $RNASEQJUNCTIONS      = "https://plasmodb.org/a/service/jbrowse/rnaseqJunctions/$ASSEMBLY"; #json file
 
+##
+# check for items to skip
+##
+my %skip_done;
+while (<DATA>) {
+    chomp;
+    $skip_done{$_}++;
+}
+
 #this is the standard tracks.conf; ignores for the moment other track configs
 #"/a/service/jbrowse/dnaseq/pfal3D7" BAMs/BWs
 #"/a/service/jbrowse/rnaseq/pfal3D7" BAMs/BWs
@@ -23,7 +32,7 @@ my $RNASEQJUNCTIONS      = "https://plasmodb.org/a/service/jbrowse/rnaseqJunctio
 #fetch tracks.conf
 ###
 my $TRACK_CONF = "tracks.conf";
-system("curl -o $TRACK_CONF $TRACKINFO") == 0 or die;
+system("curl --retry 5 -o $TRACK_CONF $TRACKINFO") == 0 or die;
 my %vuepath_track_info;
 my %lh;
 my $track_key;
@@ -47,7 +56,7 @@ close TRACKCONF;
 #fetch other json config files
 ###
 my $JUNC_FILE = $ASSEMBLY."_junc.json";
-system("curl -o $JUNC_FILE $RNASEQJUNCTIONS") == 0 or die;
+system("curl --retry 5 -o $JUNC_FILE $RNASEQJUNCTIONS") == 0 or die;
 my $junc_blob;
 {
     local $/ = undef;
@@ -59,7 +68,7 @@ my $junc_blob;
 my $junc_tracks = JSON->new->decode($junc_blob);
 
 my $SPEC_SPEC = $ASSEMBLY."_species_specific.json";
-system("curl -o $SPEC_SPEC $ASSEMBLYSPECIFICCONT") == 0 or die;
+system("curl --retry 5 -o $SPEC_SPEC $ASSEMBLYSPECIFICCONT") == 0 or die;
 my $ss_blob;
 {
     local $/ = undef;
@@ -111,7 +120,7 @@ for my $hashref (@{$$ss_tracks{'tracks'}}) {
 #fetch contig/refseqs file
 ###
 my $ASSEMBLY_CONTIG_FILE = $ASSEMBLY."_contigs.json";
-system("curl -o $ASSEMBLY_CONTIG_FILE $SEQINFO") == 0 or die;
+system("curl --retry 5 -o $ASSEMBLY_CONTIG_FILE $SEQINFO") == 0 or die;
 
 my $contiglist_blob;
 {
@@ -166,6 +175,8 @@ for my $tr_key (keys %vuepath_track_info) {
     my  $OUT = $ASSEMBLY.'_'.$track_name;
         $OUT .= "_$GETnamestr" if $GETnamestr;
 	$OUT .= ".gff";
+    next if $skip_done{$OUT}; # this one was completed on an earlier run
+
     open OUT, ">$OUT" or die "couldn't open $OUT for writing: $!"; 
 
     print OUT "##gff-version 3\n";
@@ -181,7 +192,7 @@ for my $tr_key (keys %vuepath_track_info) {
 	my $json_file = $contig_name.'_'.$OUT.'.json';
         my $fetch_url = "https://plasmodb.org/a/service/jbrowse/features/$contig_name?start=0&end=$contig_end";
 	   $fetch_url .= '&'.$GETstr if $GETstr;
-	my $curl = "curl -o $json_file \"$fetch_url\"";
+	my $curl = "curl --retry 5 -o $json_file \"$fetch_url\"";
         warn $curl;
 
         system( $curl ) == 0 or die $!;
@@ -264,3 +275,15 @@ sub parse_line {
         &parse_line(@{$attributes{'ID'}}[0], $gff3_feature{'seq_id'}, $sub);
     }
 }
+
+__DATA__
+pyoeyoelii17XNL2023_Annotated%20Transcripts%20%28UTRs%20in%20White%20when%20available%29_feature_gene%3Aannotation2.gff
+pyoeyoelii17XNL2023_EST%20Alignments_feature_alignment%3AdbEST.gff
+pyoeyoelii17XNL2023_Low%20Complexity%20Regions_feature_lowcomplexity%3Adust.gff
+pyoeyoelii17XNL2023_Tandem%20Repeats_feature_TandemRepeat%3ATRF.gff
+pyoeyoelii17XNL2023_popsetIsolates_feature_match%3AIsolatePopset.gff
+pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC_feature_domain%3AMassSpecPeptide_edName_like%20%27pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC%27.gff
+pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_LiverStage_Kappe2023_RSRC_feature_domain%3AMassSpecPeptide_edName_like%20%27pyoeyoelii17XNL2023_massSpec_LiverStage_Kappe2023_RSRC%27.gff
+pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_Sporozoite_Surface_Proteome2023_RSRC_edName_like%20%27pyoeyoelii17XNL2023_massSpec_Sporozoite_Surface_Proteome2023_RSRC%27_feature_domain%3AMassSpecPeptide.gff
+pyoeyoelii17XNL2023_tRNAscan_feature_domain%3AtRNA.gff
+pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC_edName_like%20%27pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC%27_feature_domain%3AMassSpecPeptide.gff
