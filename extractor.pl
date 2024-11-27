@@ -79,7 +79,7 @@ my $ss_tracks = JSON->new->decode($ss_blob);
 #print @{$$ss_tracks{'tracks'}};
 push @{$$ss_tracks{'tracks'}}, @{$$junc_tracks{'tracks'}};
 for my $hashref (@{$$ss_tracks{'tracks'}}) {
-    next unless defined $$hashref{'key'};
+	#next unless defined $$hashref{'key'};
     my $track_key = $$hashref{'key'};
     next unless $$hashref{'storeClass'} =~ /SeqFeature\/REST/i;
     next if defined $$hashref{'subtracks'};
@@ -130,7 +130,7 @@ my $contig_json = JSON->new->decode($contiglist_blob);
 my $log = $ASSEMBLY."_tracks.log";
 open LOG, ">$log" or die;
 for my $tr_key (keys %vuepath_track_info) {
-    next unless (defined $vuepath_track_info{$tr_key}{'query.panId'});
+	#next unless (defined $vuepath_track_info{$tr_key}{'query.panId'});
     next if (defined $vuepath_track_info{$tr_key}{'query.feature'} &&
             $vuepath_track_info{$tr_key}{'query.feature'} eq 'ReferenceSequence');
     #   next unless defined $vuepath_track_info{$tr_key}{'query.edName'};
@@ -204,9 +204,11 @@ for my $tr_key (keys %vuepath_track_info) {
 	sleep 10; # 3 seconds between curls
     }
     close OUT;
+    system("bzip2 $OUT");
+
     print LOG "$OUT\n";
     sleep 60; # 10 seconds between tracks
-    die;
+    #die;
 }
 exit 0;
 
@@ -230,7 +232,7 @@ sub parse_line {
     if (!defined $$f{'strand'}) {
         $gff3_feature{'strand'} = '.';
     }
-    elsif ($$f{'strand'} eq '1') {
+    elsif ($$f{'strand'} eq '1' or $$f{'strand'} eq '+1') {
         $gff3_feature{'strand'} = '+';
     }
     elsif ($$f{'strand'} eq '-1') {
