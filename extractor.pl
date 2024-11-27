@@ -142,11 +142,13 @@ for my $tr_key (keys %vuepath_track_info) {
 	#next unless (defined $vuepath_track_info{$tr_key}{'query.panId'});
     next if (defined $vuepath_track_info{$tr_key}{'query.feature'} &&
             $vuepath_track_info{$tr_key}{'query.feature'} eq 'ReferenceSequence');
+    next unless $vuepath_track_info{$tr_key}{'storeClass'} =~ /SeqFeature\/REST/i;
     #   next unless defined $vuepath_track_info{$tr_key}{'query.edName'};
 
-    if (defined $vuepath_track_info{$tr_key}{'query.edname'}) {
-        $vuepath_track_info{$tr_key}{'query.edName'} = $vuepath_track_info{$tr_key}{'query.edname'};
-    }
+    #reasonably sure this isn't need anymore
+    #  if (defined $vuepath_track_info{$tr_key}{'query.edname'}) {
+    #    $vuepath_track_info{$tr_key}{'query.edName'} = $vuepath_track_info{$tr_key}{'query.edname'};
+    #}
 
     my @GETarray;
     for my $config_key (keys %{$vuepath_track_info{$tr_key}}) {
@@ -176,6 +178,11 @@ for my $tr_key (keys %vuepath_track_info) {
         $OUT .= "_$GETnamestr" if $GETnamestr;
 	$OUT .= ".gff";
     next if $skip_done{$OUT}; # this one was completed on an earlier run
+    if (!$track_name && !$GETnamestr) {
+        print LOG "skipping because it will likely fail: $OUT\n";
+	print LOG Dumper($vuepath_track_info{$tr_key}) . "\n";
+	next;
+    }
 
     open OUT, ">$OUT" or die "couldn't open $OUT for writing: $!"; 
 
@@ -277,13 +284,6 @@ sub parse_line {
 }
 
 __DATA__
-pyoeyoelii17XNL2023_Annotated%20Transcripts%20%28UTRs%20in%20White%20when%20available%29_feature_gene%3Aannotation2.gff
-pyoeyoelii17XNL2023_EST%20Alignments_feature_alignment%3AdbEST.gff
-pyoeyoelii17XNL2023_Low%20Complexity%20Regions_feature_lowcomplexity%3Adust.gff
-pyoeyoelii17XNL2023_Tandem%20Repeats_feature_TandemRepeat%3ATRF.gff
-pyoeyoelii17XNL2023_popsetIsolates_feature_match%3AIsolatePopset.gff
-pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC_feature_domain%3AMassSpecPeptide_edName_like%20%27pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC%27.gff
-pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_LiverStage_Kappe2023_RSRC_feature_domain%3AMassSpecPeptide_edName_like%20%27pyoeyoelii17XNL2023_massSpec_LiverStage_Kappe2023_RSRC%27.gff
-pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_Sporozoite_Surface_Proteome2023_RSRC_edName_like%20%27pyoeyoelii17XNL2023_massSpec_Sporozoite_Surface_Proteome2023_RSRC%27_feature_domain%3AMassSpecPeptide.gff
-pyoeyoelii17XNL2023_tRNAscan_feature_domain%3AtRNA.gff
-pyoeyoelii17XNL2023_pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC_edName_like%20%27pyoeyoelii17XNL2023_massSpec_Lindner_Oocyst_Sali2023_RSRC%27_feature_domain%3AMassSpecPeptide.gff
+pyoeyoelii17X_EST%20Alignments_feature_alignment%3AdbEST.gff
+pyoeyoelii17X_UnifiedMassSpecPeptides_feature_domain%3AUnifiedMassSpecPeptides.gff
+pyoeyoelii17X_tRNAscan_feature_domain%3AtRNA.gff
