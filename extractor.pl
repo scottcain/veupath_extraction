@@ -9,10 +9,11 @@ use Bio::GFF3::LowLevel qw / gff3_format_feature  /;
 use URI::Escape;
 
 my $ASSEMBLY = $ARGV[0];
-my $SEQINFO              = "https://plasmodb.org/a/service/jbrowse/seq/$ASSEMBLY";
-my $TRACKINFO            = "https://plasmodb.org/a/jbrowse/tracks/$ASSEMBLY/tracks.conf";
-my $ASSEMBLYSPECIFICCONT = "https://plasmodb.org/a/service/jbrowse/organismSpecific/$ASSEMBLY"; #json file
-my $RNASEQJUNCTIONS      = "https://plasmodb.org/a/service/jbrowse/rnaseqJunctions/$ASSEMBLY"; #json file
+my $DIVISION = $ARGV[1];
+my $SEQINFO              = "https://$DIVISION/a/service/jbrowse/seq/$ASSEMBLY";
+my $TRACKINFO            = "https://$DIVISION/a/jbrowse/tracks/$ASSEMBLY/tracks.conf";
+my $ASSEMBLYSPECIFICCONT = "https://$DIVISION/a/service/jbrowse/organismSpecific/$ASSEMBLY"; #json file
+my $RNASEQJUNCTIONS      = "https://$DIVISION/a/service/jbrowse/rnaseqJunctions/$ASSEMBLY"; #json file
 
 ##
 # check for items to skip
@@ -197,7 +198,7 @@ for my $tr_key (keys %vuepath_track_info) {
 	my $contig_end  = $$contig_info{'end'};
   
 	my $json_file = $contig_name.'_'.$OUT.'.json';
-        my $fetch_url = "https://plasmodb.org/a/service/jbrowse/features/$contig_name?start=0&end=$contig_end";
+        my $fetch_url = "https://$DIVISION/a/service/jbrowse/features/$contig_name?start=0&end=$contig_end";
 	   $fetch_url .= '&'.$GETstr if $GETstr;
 	my $curl = "curl --retry 5 -o $json_file \"$fetch_url\"";
         warn $curl;
@@ -214,7 +215,8 @@ for my $tr_key (keys %vuepath_track_info) {
         unlink $file;
         }
 
-        my $json = JSON->new->decode($blob);
+        my $json = JSON->new->decode($blob) or print LOG "might die here: $fetch_url\n";
+	next unless $json;
 
         for my $feature (@{$$json{'features'}}) {
             &parse_line(undef, $contig_name, $feature);
@@ -283,7 +285,5 @@ sub parse_line {
     }
 }
 
+# if we need to re run for an assembly, put the names of the completed GFF files here so they'll be skipped
 __DATA__
-pyoeyoelii17X_EST%20Alignments_feature_alignment%3AdbEST.gff
-pyoeyoelii17X_UnifiedMassSpecPeptides_feature_domain%3AUnifiedMassSpecPeptides.gff
-pyoeyoelii17X_tRNAscan_feature_domain%3AtRNA.gff
