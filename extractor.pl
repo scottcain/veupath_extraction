@@ -215,6 +215,10 @@ for my $tr_key (keys %vuepath_track_info) {
         unlink $file;
         }
 
+	if ($blob =~ /^Cannot find/ ) {
+            print LOG "got a 'cannot find' for $fetch_url\n";
+	    next;
+	}
         my $json = JSON->new->decode($blob) or print LOG "might die here: $fetch_url\n";
 	next unless $json;
 
