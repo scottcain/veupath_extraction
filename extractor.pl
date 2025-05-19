@@ -14,6 +14,7 @@ my $SEQINFO              = "https://$DIVISION/a/service/jbrowse/seq/$ASSEMBLY";
 my $TRACKINFO            = "https://$DIVISION/a/jbrowse/tracks/$ASSEMBLY/tracks.conf";
 my $ASSEMBLYSPECIFICCONT = "https://$DIVISION/a/service/jbrowse/organismSpecific/$ASSEMBLY"; #json file
 my $RNASEQJUNCTIONS      = "https://$DIVISION/a/service/jbrowse/rnaseqJunctions/$ASSEMBLY"; #json file
+my $TRACKLIST            = "https://$DIVISION/a/service/jbrowse/tracks/$ASSEMBLY/trackList.json";
 
 ##
 # check for items to skip
@@ -131,7 +132,37 @@ my $contiglist_blob;
     $contiglist_blob = <FF>;
     close FF;
 }
-my $contig_json = JSON->new->decode($contiglist_blob);
+my $fetch_tracklist = ($contiglist_blob =~ /^HTTP 404 Not Found/) ? 1 : 0;
+
+my $contig_json;
+if (!$fetch_tracklist) { #contents probably json
+    $contig_json = JSON->new->decode($contiglist_blob);
+} 
+else { #contents not json, get the fai instead
+    system("curl --retry 5 -o ".$ASSEMBLY."_tracklist.json $TRACKLIST") == 0 or die;
+
+    my $tracklist_blob;
+    {
+        local $/ = undef;
+        my $file = $ASSEMBLY."_tracklist.json";
+        open FF, "<$file" or die "couldn't open $file: $!";
+        $tracklist_blob = <FF>;
+        close FF;
+    }
+    my $tracklist_json = JSON->new->decode($tracklist_blob);
+
+    system("curl --retry 5 -o $ASSEMBLY.fai \"https://$DIVISION$$tracklist_json{refSeqs}\"") ;
+
+    open FAI, "<$ASSEMBLY.fai" or die "couldn't open $ASSEMBLY.fai: $!";
+    while (<FAI>) {
+        my @la = split("\t", $_);
+        my %temp_hash;
+        $temp_hash{'name'} = $la[0];
+        $temp_hash{'end'}  = $la[1];
+        push @{$contig_json}, \%temp_hash;
+    }
+    close FAI;
+}
 
 ###
 # loop through all of the tracks
@@ -165,6 +196,9 @@ for my $tr_key (keys %vuepath_track_info) {
     my $track_name    = uri_escape($vuepath_track_info{$tr_key}{'key'});
     $track_name = uri_escape($vuepath_track_info{$tr_key}{'label'}) unless $track_name;
     $track_name =~ s/\ /_/g;
+    next if ($track_name =~ /Tandem%20Repeats/);
+    next if ($track_name =~ /Gene%20Density/);
+    next if ($track_name =~ /Low%20Complexity%20Regions/);
     #my $query_feature = uri_escape($vuepath_track_info{$tr_key}{'query.feature'});
     #my $edname_str    = '';
     #if (defined $vuepath_track_info{$tr_key}{'query.edName'}) {
@@ -177,6 +211,7 @@ for my $tr_key (keys %vuepath_track_info) {
 
     my  $OUT = $ASSEMBLY.'_'.$track_name;
         $OUT .= "_$GETnamestr" if $GETnamestr;
+	$OUT = substr($OUT, 0, 200) if length($OUT) > 200;
 	$OUT .= ".gff";
     next if $skip_done{$OUT}; # this one was completed on an earlier run
     if (!$track_name && !$GETnamestr) {
@@ -195,12 +230,12 @@ for my $tr_key (keys %vuepath_track_info) {
 
     for my $contig_info (@{$contig_json}) {
         my $contig_name = $$contig_info{'name'};
-	my $contig_end  = $$contig_info{'end'};
+	      my $contig_end  = $$contig_info{'end'};
   
-	my $json_file = $contig_name.'_'.$OUT.'.json';
+	      my $json_file = $contig_name.'_'.$OUT.'.json';
         my $fetch_url = "https://$DIVISION/a/service/jbrowse/features/$contig_name?start=0&end=$contig_end";
-	   $fetch_url .= '&'.$GETstr if $GETstr;
-	my $curl = "curl --retry 5 -o $json_file \"$fetch_url\"";
+	      $fetch_url .= '&'.$GETstr if $GETstr;
+	      my $curl = "curl --retry 5 -o $json_file \"$fetch_url\"";
         warn $curl;
 
         system( $curl ) == 0 or die $!;
@@ -215,17 +250,17 @@ for my $tr_key (keys %vuepath_track_info) {
         unlink $file;
         }
 
-	if ($blob =~ /^Cannot find/ ) {
+	      if ($blob =~ /^Cannot find/ ) {
             print LOG "got a 'cannot find' for $fetch_url\n";
-	    next;
-	}
+	          next;
+      	}
         my $json = JSON->new->decode($blob) or print LOG "might die here: $fetch_url\n";
-	next unless $json;
+	      next unless $json;
 
         for my $feature (@{$$json{'features'}}) {
             &parse_line(undef, $contig_name, $feature);
         }
-	sleep 10; # 3 seconds between curls
+	      sleep 10; # 3 seconds between curls
     }
     close OUT;
     system("bzip2 $OUT");
@@ -250,7 +285,7 @@ sub parse_line {
     }
     $gff3_feature{'source'} = $$f{'source'};
     $gff3_feature{'type'}   = $$f{'type'} eq 'gff' ? defined $$f{'soterm'} ? $$f{'soterm'} : 'region' : $$f{'type'};
-    $gff3_feature{'start'}  = $$f{'startm'}; # the base coord start
+    $gff3_feature{'start'}  = $$f{'startm'} < 1 ? 1 : $$f{'startm'}; # the base coord start
     $gff3_feature{'end'}    = $$f{'end'};
     $gff3_feature{'phase'}  = $$f{'phase'};
     if (!defined $$f{'strand'}) {
