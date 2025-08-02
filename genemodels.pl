@@ -207,9 +207,11 @@ for my $datasetid (@datasetids) {
     #}
 
         if ($vuepath_track_info{$tr_key}{'storeClass'} =~ /GFF3Tabix/) {
-           my $filename = $ASSEMBLY . "_" . $tr_key;
-           my $url = "https://$DIVISION" . $vuepath_track_info{$tr_key}{'$urlTemplate'};
-           system("curl -o \"$filename\" \"$url\"") == 0 or die "failed to fetch $url";
+           my $filename = $ASSEMBLY . "_" . $tr_key . ".gz";
+           my $url = "https://$DIVISION" . $vuepath_track_info{$tr_key}{'urlTemplate'} ;
+           my $curl = "curl -o \"$filename\" \"$url\"";
+           warn $curl;
+           system($curl) == 0 or die "failed to fetch $url";
            next;
         }
 
