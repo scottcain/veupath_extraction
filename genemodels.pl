@@ -44,6 +44,8 @@ my @datasetids = keys %{$$starting_json{datasets}};
 
 for my $datasetid (@datasetids) {
 
+    next if $skip_done{$datasetid};
+
     my $ASSEMBLY = $datasetid;
     my $SEQINFO              = "https://$DIVISION/a/service/jbrowse/seq/$ASSEMBLY";
     #    my $TRACKINFO            = "https://$DIVISION/a/jbrowse/tracks/$ASSEMBLY/tracks.conf";
@@ -54,6 +56,7 @@ for my $datasetid (@datasetids) {
 ###
 #fetch contig/refseqs file
 ###
+    my $skip_contigs = 0;
     my $ASSEMBLY_CONTIG_FILE = $ASSEMBLY."_contigs.json";
     system("curl --retry 5 -o $ASSEMBLY_CONTIG_FILE $SEQINFO") == 0 or die;
 
@@ -87,14 +90,17 @@ for my $datasetid (@datasetids) {
         system("curl --retry 5 -o $ASSEMBLY.fai \"https://$DIVISION$$tracklist_json{refSeqs}\"") ;
 
         open FAI, "<$ASSEMBLY.fai" or die "couldn't open $ASSEMBLY.fai: $!";
+        my $count = 0;
         while (<FAI>) {
             my @la = split("\t", $_);
             my %temp_hash;
             $temp_hash{'name'} = $la[0];
             $temp_hash{'end'}  = $la[1];
             push @{$contig_json}, \%temp_hash;
+            $count++;
         }
         close FAI;
+        $skip_contigs = 1 if $count >300;
     }
 
 ###
@@ -132,7 +138,8 @@ for my $datasetid (@datasetids) {
   #      my $file = $JUNC_FILE;
   #      open FF, "<$file" or die "couldn't open $file: $!";
   #      $junc_blob = <FF>;
-  #      close FF;
+  #      close FF;?log
+  #
   #  }
   #  my $junc_tracks = JSON->new->decode($junc_blob);
   #
@@ -146,7 +153,14 @@ for my $datasetid (@datasetids) {
         $ss_blob = <FF>;
         close FF;
     }
-    my $ss_tracks = JSON->new->decode($ss_blob);
+    my $log = $ASSEMBLY."_tracks.log";
+    open LOG, ">$log" or die;
+    if ($ss_blob =~ /^Cannot open/) {
+        print LOG "failed to get species specific json\n" ;       
+        next;
+    }
+
+    my $ss_tracks = JSON->new->decode($ss_blob) or warn "$SPEC_SPEC failed" ;
 
 ###
 #   Map the jbrowse json configs to the internal config hash
@@ -192,8 +206,6 @@ for my $datasetid (@datasetids) {
 #fetch contig/refseqs file
 ###
 
-    my $log = $ASSEMBLY."_tracks.log";
-    open LOG, ">$log" or die;
     for my $tr_key (keys %vuepath_track_info) {
 	#next unless (defined $vuepath_track_info{$tr_key}{'query.panId'});
         next if (defined $vuepath_track_info{$tr_key}{'query.feature'} &&
@@ -209,12 +221,13 @@ for my $datasetid (@datasetids) {
         if ($vuepath_track_info{$tr_key}{'storeClass'} =~ /GFF3Tabix/) {
            my $filename = $ASSEMBLY . "_" . $tr_key . ".gz";
            my $url = "https://$DIVISION" . $vuepath_track_info{$tr_key}{'urlTemplate'} ;
-           my $curl = "curl -o \"$filename\" \"$url\"";
+           my $curl = "curl --retry 5 -o \"$filename\" \"$url\"";
            warn $curl;
            system($curl) == 0 or die "failed to fetch $url";
            next;
         }
 
+        next if $skip_contigs;
         my @GETarray;
         for my $config_key (keys %{$vuepath_track_info{$tr_key}}) {
             if ( $config_key =~ /query\.(.*)/ ) {
@@ -293,7 +306,7 @@ for my $datasetid (@datasetids) {
             for my $feature (@{$$json{'features'}}) {
                 &parse_line(undef, $contig_name, $feature);
             }
-	          sleep 10; # 3 seconds between curls
+	          sleep 15; # 3 seconds between curls
         }
         close OUT;
         system("bzip2 $OUT");
